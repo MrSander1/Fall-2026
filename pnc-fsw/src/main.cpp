@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <Wire.h>
 
+
 #include "ErrorDisplay.h"
 #include "RadiacodeBLE.h"
 #include "SysHead.h"
@@ -12,22 +13,39 @@
 #include "tasks/monitor.h"
 #include "tasks/watchdog.h"
 
+
 // sensors
 #include "drivers/BMESensor.h"
+#include "drivers/BMPSensor.h"
+#include "drivers/AHTSensor.h"
 #include "drivers/GPSSensor.h"
 #include "drivers/INASensor.h"
 #include "drivers/PicoTempSensor.h"
 #include "drivers/RTCSensor.h"
 #include "drivers/Sensor.h"
 
+// Todo: create a new sensor driver for BMP280 + AHT20
+
+// create a sensor class for bmp280 and AHT20
+
 PicoTempSensor pico_temp_sensor;
 RTCSensor rtc_sensor;
 BMESensor bme_sensor;
 GPSSensor gps_sensor;
 INASensor ina_sensor;
+BMPSensor bmp_sensor;
+AHTSensor aht_sensor;
 
-Sensor* sensors[] = {&pico_temp_sensor, &rtc_sensor, &bme_sensor, &ina_sensor,
-                     &gps_sensor};
+// add it to the sensors array
+
+Sensor* sensors[] = {
+                    &pico_temp_sensor, 
+                    &rtc_sensor, 
+                    &bmp_sensor, 
+                    &ina_sensor,
+                    &gps_sensor,
+                    &aht_sensor
+                    };
 const size_t sensors_len = sizeof(sensors) / sizeof(sensors[0]);
 bool found_sensors[sensors_len];
 
@@ -42,18 +60,23 @@ void sd_setup();
 bool sd_status = false;
 String filename = "";
 
+
+// add the sensor data to the packet struct for BMP280 and AHT20
 struct __attribute__((packed)) Packet {
   uint32_t sync_bytes = 0xDEADCAFE;
   uint32_t uptime;
   uint8_t id = 0;
-  uint8_t length = 3 * sizeof(uint32_t) + 3 * sizeof(uint8_t) + sizeof(float) +
-                   sizeof(BMESensorData) + sizeof(INASensorData) +
-                   sizeof(GPSSensorData);
+  uint8_t length = sizeof(Packet);
+  // uint8_t length = 3 * sizeof(uint32_t) + 3 * sizeof(uint8_t) + sizeof(float) +
+  //                  sizeof(BMESensorData) + sizeof(INASensorData) +
+  //                  sizeof(GPSSensorData) + sizeof(BMPSensorData) + sizeof(int8_t) + sizeof(BMPSesnorData) + sizeof(); // not sure if sizeof(int8_t) is needed, but just to be safe
   float temp_data;
   uint32_t rtc_time;
   BMESensorData bme_data;
+  BMPSensorData bmp_data;
   INASensorData ina_data;
   GPSSensorData gps_data;
+  AHTSensorData aht_data;
   int8_t checksum;
 };
 
@@ -85,7 +108,7 @@ void setup() {
   // sd setup
   sd_setup();
 
-  // radiacode setup
+  // radiacode setup not need right now
   radiacode_ble_init();
   uint8_t res = radiacode_ble_connect(rc_target_mac, true);
   if (res != 0) {
@@ -136,8 +159,8 @@ void loop() {
   watchdog_intertask_update(WATCHDOG_MAIN_TASK_ID);
   sysvar_update();
   store_data();
-
-  save_radiacode_data();
+  // not needed for now, but can be used to save radiacode data if needed
+  //save_radiacode_data();
 
   delay(200);
 }
@@ -238,6 +261,8 @@ void store_data() {
   float pico_temp_c;
   uint32_t rtc_time;
   BMESensorData bme_data;
+  BMPSensorData bmp_data;
+  AHTSensorData aht_data;
   INASensorData ina_data;
   GPSSensorData gps_data;
   Packet packet;
@@ -249,13 +274,17 @@ void store_data() {
   sysvar_get_bme_data(&bme_data);
   sysvar_get_ina_data(&ina_data);
   sysvar_get_gps_data(&gps_data);
+  sysvar_get_bmp_data(&bmp_data);
+  sysvar_get_aht_data(&aht_data);
 
   packet.uptime = millis();
   packet.temp_data = pico_temp_c;
   packet.rtc_time = rtc_time;
   packet.bme_data = bme_data;
+  packet.aht_data = aht_data;
   packet.ina_data = ina_data;
   packet.gps_data = gps_data;
+  packet.bmp_data = bmp_data;
 
   uint8_t* pos = (uint8_t*)&packet;
 

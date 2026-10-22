@@ -14,7 +14,9 @@ static float pico_temp_c;
 static uint32_t rtc_time;
 static INASensorData ina_data;
 static BMESensorData bme_data;
+static AHTSensorData aht_data;
 static GPSSensorData gps_data;
+static BMPSensorData bmp_data;
 
 // Access functions
 #define with_sysvar_mutex(operation)                                   \
@@ -57,6 +59,22 @@ int8_t sysvar_set_bme_data(BMESensorData* sensor_data) {
 
 int8_t sysvar_get_bme_data(BMESensorData* sensor_data) {
   with_sysvar_mutex(*sensor_data = bme_data);
+}
+
+int8_t sysvar_set_bmp_data(BMPSensorData* sensor_data) {
+  with_sysvar_mutex(bmp_data = *sensor_data);
+}
+
+int8_t sysvar_get_bmp_data(BMPSensorData* sensor_data) {
+  with_sysvar_mutex(*sensor_data = bmp_data);
+}
+
+int8_t sysvar_set_aht_data(AHTSensorData* sensor_data) {
+  with_sysvar_mutex(aht_data = *sensor_data);
+}
+
+int8_t sysvar_get_aht_data(AHTSensorData* sensor_data) {
+  with_sysvar_mutex(*sensor_data = aht_data);
 }
 
 int8_t sysvar_set_gps_data(GPSSensorData* sensor_data) {

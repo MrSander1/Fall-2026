@@ -1,6 +1,7 @@
 #include "tasks/monitor.h"
 
 #include <drivers/BMESensor.h>
+#include <drivers/BMPSensor.h>
 #include <drivers/GPSSensor.h>
 #include <drivers/INASensor.h>
 
@@ -19,16 +20,24 @@ void monitor_task() {
   res = sysvar_get_rtc_time(&rtc_time);
   log_task("RTC Time: " + String(rtc_time) + "(" + String(res) + ")");
 
+  BMPSensorData bmp_data;
+  res = sysvar_get_bmp_data(&bmp_data);
+  log_task("BMP Temperature: " + String(bmp_data.BMPTemp) + "(" + String(res) +
+           ")");
+  log_task("BMP Pressure: " + String(bmp_data.BMPPressure) + "(" + String(res) +
+           ")");
+           
   BMESensorData bme_data;
   res = sysvar_get_bme_data(&bme_data);
-  log_task("BME Temperature: " + String(bme_data.BMETemp) + "(" + String(res) +
-           ")");
-  log_task("BME Pressure: " + String(bme_data.BMEPressure) + "(" + String(res) +
-           ")");
   log_task("BME Humidity: " + String(bme_data.BMEHumidity) + "(" + String(res) +
            ")");
   log_task("BME Gas Sensor: " + String(bme_data.BMEGasResistance) + "(" +
            String(res) + ")");
+
+  AHTSensorData aht_data;
+  res = sysvar_get_aht_data(&aht_data);
+  log_task("AHT Temperature: " + String(aht_data.AHTTemp) + "(" + String(res) + ")");
+  log_task("AHT Humidity: " + String(aht_data.AHTHumidity) + "(" + String(res) + ")");
 
   GPSSensorData gps_data;
   res = sysvar_get_gps_data(&gps_data);
