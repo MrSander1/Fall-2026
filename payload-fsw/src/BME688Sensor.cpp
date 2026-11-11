@@ -7,7 +7,8 @@
  * ms
  *
  */
-BME688Sensor::BME688Sensor(TwoWire* i2c_bus) : BME688Sensor(0, i2c_bus) {}
+BME688Sensor::BME688Sensor(TwoWire* i2c_bus) : BME688Sensor(0, i2c_bus) {
+}
 
 /**
  * @brief Construct a new BME688 Sensor object

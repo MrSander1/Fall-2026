@@ -49,11 +49,11 @@ BME688Sensor    bme688_sensor     (500,   &STRATOCORE_I2C);
 
 // StratoSense
 AS7331Sensor    uv_sensor_out     (500, UV_I2C_ADDR);
-ENS160Sensor    ens160_sensor_out (500,   &STRATOSENSE_I2C, ENS160_ADDRESS_HIGH);
-BMP390Sensor    bmp_sensor_out    (500,   &STRATOSENSE_I2C, BMP390_ALT_I2C_ADDR);
-TMP11xSensor    tmp_sensor_out    (500,   &STRATOSENSE_I2C); 
-SHTC3Sensor     shtc3_sensor_out  (500,   &STRATOSENSE_I2C);
-OzoneSensor     ozone_sensor_out  (500,   &STRATOSENSE_I2C);
+ENS160Sensor    ens160_sensor_out (500,   &STRATOCORE_I2C, ENS160_ADDRESS_LOW);
+BMP390Sensor    bmp_sensor_out    (500,   &STRATOCORE_I2C, BMP390_ALT_I2C_ADDR);
+TMP11xSensor    tmp_sensor_out    (500,   &STRATOCORE_I2C); 
+SHTC3Sensor     shtc3_sensor_out  (500,   &STRATOCORE_I2C);
+OzoneSensor     ozone_sensor_out  (500,   &STRATOCORE_I2C);
 // clang-format on
 
 // sensor array
@@ -163,8 +163,10 @@ void loop() {
 
   // print csv row
   // log_data(csv_row);
-  log_data_raw(packet, packet_len);
-
+  log_data_raw(packet, packet_len); //ERICK CHANGE
+  //log_data(decodePacket(packet)); // use this to print it terminal
+  // [Data] sensors=PicoTemp, PCF8523 RTC, TMP117, GeigerCounter | elapsed=28725 ms | PicoTemp=21.52 °C | RTC=2053/7/14 15:49:58 | TMP117=22.91 °C | GeigerCPS=0.00 | GeigerDose=0.00
+  // no BME688, no ICM, no PCF, no BMP390
   // send data to core1
   // queue_add_blocking(&qt, packet);
   queue_try_add(&qt, packet);
@@ -225,6 +227,7 @@ uint16_t readSensorDataPacket(uint8_t* packet) {
   for (int i = 0; i < sensors_len; i++) {
     if (sensors[i]->attemptConnection()) {
       sensors[i]->getDataPacket(sensor_id, temp_packet);
+      sensors[i]->getDeviceName();
     } else {
       sensor_id <<= 1;
     }
@@ -253,12 +256,41 @@ uint16_t readSensorDataPacket(uint8_t* packet) {
 
   return packet_len;
 }
+// ERICK CHANGE 
+static void appendNamedCsvFields(String& row, const String& headers,
+                                 const String& values,
+                                 const String& fallback) {
+  size_t header_start = 0;
+  size_t value_start = 0;
+
+  while (header_start < headers.length()) {
+    int header_end = headers.indexOf(',', header_start);
+    if (header_end < 0) header_end = headers.length();
+
+    String name = headers.substring(header_start, header_end);
+    name.trim();
+    if (name.length() > 0) {
+      String value = fallback;
+      if (value_start < values.length()) {
+        int value_end = values.indexOf(',', value_start);
+        if (value_end < 0) value_end = values.length();
+        value = values.substring(value_start, value_end);
+        value.trim();
+        if (value.length() == 0) value = fallback;
+        value_start = value_end + 1;
+      }
+      row += name + " = " + value + "\n";
+    }
+
+    header_start = header_end + 1;
+  }
+}
 
 /**
- * @brief Decodes the packet to a CSV row
+ * @brief Decodes the packet to a row with named sensor fields
  *
  * @param packet Pointer to the packet array
- * @return String The resulting CSV row
+ * @return String The resulting row
  */
 String decodePacket(uint8_t* packet) {
   uint8_t* temp_packet = packet;
@@ -270,8 +302,8 @@ String decodePacket(uint8_t* packet) {
   uint16_t packet_len = *((uint16_t*)temp_packet);
   temp_packet += sizeof(packet_len);
 
-  // start with sensor_id in a cell in Hex
-  String csv_row = String(sensor_id, HEX) + ",";
+  String csv_row =
+      "sensor_id=" + String(sensor_id, HEX);
 
   uint32_t sensor_id_temp = sensor_id;
   uint8_t id_offset = 0;
@@ -288,17 +320,29 @@ String decodePacket(uint8_t* packet) {
   memcpy(&r_now, temp_packet, sizeof(uint32_t));
 
   temp_packet += sizeof(r_now);
-  csv_row += String(r_now) + ",";
 
   int curr_offset = id_offset - 1;
+  csv_row += ", elapsed_ms=" + String(r_now) + ", ";
+
+  // ERICK CHANGE - this was the old code that didn't work with named fields
+  // while (curr_offset >= 0) {
+  //   if (sensor_id & (1 << curr_offset)) {
+  //     // log_core("\tDecoding " + sensors[id_offset - curr_offset -
+  //     // 1]->getDeviceName());
+  //     csv_row += sensors[id_offset - curr_offset - 1]->decodeToCSV(temp_packet);
+  //   } else if (sensors[id_offset - curr_offset - 1]->getVerified()) {
+  //     csv_row += sensors[id_offset - curr_offset - 1]->readEmpty();
+  //   } else {
+  //   }
+  // }
   while (curr_offset >= 0) {
-    if (sensor_id & (1 << curr_offset)) {
-      // log_core("\tDecoding " + sensors[id_offset - curr_offset -
-      // 1]->getDeviceName());
-      csv_row += sensors[id_offset - curr_offset - 1]->decodeToCSV(temp_packet);
-    } else if (sensors[id_offset - curr_offset - 1]->getVerified()) {
-      csv_row += sensors[id_offset - curr_offset - 1]->readEmpty();
+    Sensor* sensor = sensors[id_offset - curr_offset - 1];
+    if (sensor_id & (1u << curr_offset)) {
+      String values = sensor->decodeToCSV(temp_packet);
+      appendNamedCsvFields(csv_row, sensor->getSensorCSVHeader(), values, "");
     } else {
+      String state = sensor->getVerified() ? "not_due" : "unavailable";
+      appendNamedCsvFields(csv_row, sensor->getSensorCSVHeader(), "", state);
     }
     curr_offset--;
   }

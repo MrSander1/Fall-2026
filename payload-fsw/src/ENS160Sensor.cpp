@@ -58,7 +58,7 @@ void ENS160Sensor::setCompensations() {
   if (this->i2c_bus == &Wire) {
     tmp_options[0] = &tmp_sensor;
     tmp_options[1] = &tmp_sensor_out;
-    shtc_options[1] = &shtc3_sensor_out;
+    shtc_options[0] = &shtc3_sensor_out;
   } else {
     tmp_options[0] = &tmp_sensor_out;
     tmp_options[1] = &tmp_sensor;

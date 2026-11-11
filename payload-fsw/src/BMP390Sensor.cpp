@@ -20,7 +20,7 @@ BMP390Sensor::BMP390Sensor(unsigned long minium_period, TwoWire* i2c_bus,
     : Sensor("BMP390", "BMP TempC,BMP PresPa,BMP Altm", minium_period) {
   this->i2c_bus = i2c_bus;
   if (this->i2c_bus == &Wire1) this->device_name += "_1";
-  this->i2c_addr = BMP390_DEFAULT_I2C_ADDR;
+  this->i2c_addr = i2c_addr;
 }
 
 /**
@@ -64,11 +64,13 @@ String BMP390Sensor::readData() {
  */
 void BMP390Sensor::readDataPacket(uint8_t*& packet) {
   if (bmp.performReading()) {
-    memcpy(packet, &(bmp.temperature), sizeof(bmp.temperature));
-    packet += sizeof(bmp.temperature);
+    const double temperature = bmp.temperature;
+    memcpy(packet, &temperature, sizeof(temperature));
+    packet += sizeof(temperature);
 
-    memcpy(packet, &(bmp.pressure), sizeof(bmp.pressure));
-    packet += sizeof(bmp.pressure);
+    const double pressure = bmp.pressure;
+    memcpy(packet, &pressure, sizeof(pressure));
+    packet += sizeof(pressure);
 
     float alt = bmp.readAltitude(SEALEVELPRESSURE_HPA);
     memcpy(packet, &alt, sizeof(alt));
@@ -95,8 +97,8 @@ void BMP390Sensor::readDataPacket(uint8_t*& packet) {
  * @return String CSV stub Temperature, Pressure,
  */
 String BMP390Sensor::decodeToCSV(uint8_t*& packet) {
-  double temperature = 0;
-  double pressure = 0;
+  float temperature = 0;
+  float pressure = 0;
   float alt = 0;
 
   memcpy(&temperature, packet, sizeof(temperature));
